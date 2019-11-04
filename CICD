@@ -2,11 +2,9 @@ node{
    stage('GIT CHECKOUT')
    {
 	try {
-			notifyStarted()
-			git branch: 'master', credentialsId: 'github_pwd', url: 'https://github.com/deepanshu1994/spring3-mvc-maven-xml-hello-world-master'
+		git branch: 'master', credentialsId: 'github_pwd', url: 'https://github.com/deepanshu1994/demo'
 		}
     catch(err) {
-				notifyFailed()
 				throw(err)
 				}
    }
@@ -24,7 +22,6 @@ node{
 			}
 		}
 	 catch(err) {
-				notifyFailed()
 				throw(err)
 				}
     }
@@ -37,7 +34,6 @@ node{
 				}
 			}
 	 catch(err) {
-				notifyFailed()
 				throw(err)
 				}
     }
@@ -46,10 +42,9 @@ node{
 		try {
 			 def docHome = tool name: 'docker', type: 'org.jenkinsci.plugins.docker.commons.tools.DockerTool'
 			 def docCMD = "${docHome}/bin/docker"
-			 sh "${docCMD} build -t da9916/my-app:${Build_Number} ."
+			 sh "${docCMD} build -t da9916/demo:${Build_Number} ."
 			 }
 	 catch(err) {
-				notifyFailed()
 				throw(err)
 				} 
    }
@@ -62,11 +57,10 @@ node{
 			 {
 				sh "${docCMD} login -u da9916 -p ${dockerHubPwd}"
 			 }
-			 sh "${docCMD} push da9916/my-app:${Build_Number}"
-			 sh "${docCMD} rmi da9916/my-app:${Build_Number}"
+			 sh "${docCMD} push da9916/demo:${Build_Number}"
+			 sh "${docCMD} rmi da9916/demo:${Build_Number}"
 			 }
 	 catch(err) {
-				notifyFailed()
 				throw(err)
 				}
    }
@@ -86,93 +80,6 @@ try {
         }
 	}
 catch(err) {
-		notifyAborted()
 		throw(err)
 		}	
 }
-
-node{
-	def remote = [:]
-	remote.name = 'devserver'
-	remote.host = '13.232.24.133'
-	remote.user = 'ec2-user'
-	withCredentials([string(credentialsId: 'dev_server_pwd', variable: 'devserverpwd')])
-  	{
-	remote.password = "${devserverpwd}"
-	}
-	remote.allowAnyHosts = true
-   stage('DEPLOY DOCKER IMAGE')
-   {
-   try {
-     script{
-        def lastSuccessfulBuildID = 0
-        def build = currentBuild.previousBuild
-        while (build != null) {
-            if (build.result == "SUCCESS")
-            {
-                lastSuccessfulBuildID = build.id as Integer
-                break
-            }
-            build = build.previousBuild
-        }
-        println lastSuccessfulBuildID
-        sh "echo ${lastSuccessfulBuildID}"
-		  res = sshCommand remote: remote, command: 'docker ps | grep test | wc -l'
-		  result = sshCommand remote: remote, command: 'docker ps -a | grep test | wc -l'
-        if ( "${res}" == "1" )
-        {
-         sh "echo if"
-         sshCommand remote: remote, command: 'docker stop test'
-         sshCommand remote: remote, command: 'docker rm test'
-         sshCommand remote: remote, command: "docker rmi da9916/my-app:${lastSuccessfulBuildID}"
-         sshCommand remote: remote, command: "docker run -d --name test -p 80:8080 da9916/my-app:${Build_Number}"
-        }
-		else if ( "${result}" == "1" )
-        {
-         sh "echo if"
-         sshCommand remote: remote, command: 'docker rm test'
-         sshCommand remote: remote, command: "docker rmi da9916/my-app:${lastSuccessfulBuildID}"
-         sshCommand remote: remote, command: "docker run -d --name test -p 80:8080 da9916/my-app:${Build_Number}"
-        }
-        else
-        {
-         sh "echo else"
-         sshCommand remote: remote, command: "docker run -d --name test -p 80:8080 da9916/my-app:${Build_Number}"
-        }
-   }
-   }
-	 catch(err) {
-				notifyFailed()
-				throw(err)
-				}
-	notifyCompleted()
-}
-}
-
-def notifyApprover() {
-mail cc: 'ankurd@hcl.com', to: 'da9916@gmail.com,deepanshu.a@hcl.com,tripurari.a@hcl.com', subject: "Deployment Notification: Job ${env.JOB_NAME} [${env.BUILD_NUMBER}] approver request", mimeType: 'text/html',
-       body: """Build deployment started for Job ${env.JOB_NAME} [${env.BUILD_NUMBER}].
-Please provide your approval : <a href="${env.BUILD_URL}input/">approve</a> !"""
- }
- 
- def notifyStarted() {
-mail cc: 'ankurd@hcl.com', to: 'da9916@gmail.com,deepanshu.a@hcl.com,tripurari.a@hcl.com', subject: "Deployment Notification: Job ${env.JOB_NAME} [${env.BUILD_NUMBER}] started", mimeType: 'text/html',
-       body: """Build deployment started for Job ${env.JOB_NAME} [${env.BUILD_NUMBER}]."""
- }
-
-def notifyCompleted() {
-mail cc: 'ankurd@hcl.com', to: 'da9916@gmail.com,deepanshu.a@hcl.com,tripurari.a@hcl.com', subject: "Deployment Notification: Job ${env.JOB_NAME} [${env.BUILD_NUMBER}] completed", mimeType: 'text/html',
-       body: """Build deployment completed for Job ${env.JOB_NAME} [${env.BUILD_NUMBER}]."""
- }
- 
- def notifyAborted() {
-mail cc: 'ankurd@hcl.com', to: 'da9916@gmail.com,deepanshu.a@hcl.com,tripurari.a@hcl.com', subject: "Deployment Notification: Job ${env.JOB_NAME} [${env.BUILD_NUMBER}] rejected/aborted", mimeType: 'text/html',
-       body: """Build deployment rejected/aborted for Job ${env.JOB_NAME} [${env.BUILD_NUMBER}].
-For more details : <a href="${env.BUILD_URL}console">click here</a> !"""
- }
-
-  def notifyFailed() {
-mail cc: 'ankurd@hcl.com', to: 'da9916@gmail.com,deepanshu.a@hcl.com,tripurari.a@hcl.com', subject: "Deployment Notification: Job ${env.JOB_NAME} [${env.BUILD_NUMBER}] failed", mimeType: 'text/html',
-       body: """Build deployment failed for Job ${env.JOB_NAME} [${env.BUILD_NUMBER}].
-For more details : <a href="${env.BUILD_URL}console">click here</a> !"""
- }
